@@ -1,0 +1,34 @@
+int sensor = valorRecebidoSensor;
+String nomeCliente = "Nome do cliente";
+String email = "email@cliente.com";
+
+
+if(sensor > 600){
+ String msg = "A umidade do solo está baixa!";
+ enviarEmail(msg, nomeCliente, email);
+} else 
+if(sensor > 300){
+ msg = "A umidade do solo está alta!";
+ enviarEmail(msg, nomeCliente, email);
+};
+
+function void String enviarEmail(String menssagem, String nomeCliente, emailCliente){
+  Properties props = new Properties();
+  Session session = Session.getDefaultInstance(props, null);
+
+  try {
+    Message msg = new MimeMessage(session);
+    msg.setFrom(new InternetAddress("emaildoapp@example.com", "App.com Admin"));
+    msg.addRecipient(Message.RecipientType.TO,
+                     new InternetAddress(emailCliente, nomeCliente));
+    msg.setSubject("Alerta de umidade do solo!");
+    msg.setText(mensagem);
+    Transport.send(msg);
+  } catch (AddressException e) {
+    // ...
+  } catch (MessagingException e) {
+    // ...
+  } catch (UnsupportedEncodingException e) {
+    // ...
+  }
+}
