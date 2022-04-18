@@ -1,64 +1,143 @@
-//Include da lib de Wifi do ESP8266
-#include <ESP8266WiFi.h>
-//Include da lib do sensor DHT11 e DHT22
-#include "DHT.h"
-//Define do pino a ser utilizado no ESP para o sensor de umidade do solo
-#define DHT_DATA_PIN 2
-#define DHTTYPE DHT11
-//Definir o SSID da rede WiFi
-const char* ssid = "OficinaIoT";
-//Definir a senha da rede WiFi
-const char* password = "EmbarcadoS";
-//Colocar a API Key para escrita neste campo
-//Ela é fornecida no canal que foi criado na aba API Keys
-String apiKey = "KKLZ0KXNGCN0KNH2";   	//trocar pela API Write
-const char* server = "api.thingspeak.com";
-DHT dht(DHT_DATA_PIN, DHTTYPE);
-WiFiClient client;
-void setup() {
-  //Configuração da UART
-  Serial.begin(9600);
-  //Inicia o WiFi
-  WiFi.begin(ssid, password);
-  //Espera a conexão no router
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  dht.begin();
-  //Logs na porta serial
-  Serial.println("");
-  Serial.print("Conectado na rede ");
-  Serial.println(ssid);
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
-}
-void loop() {
-  //Espera 20 segundos para fazer a leitura
-  delay(20000);
-   
-  int umidadeSolo = analogRead(0);
+#include <ESP8266WiFi.h>  //essa biblioteca já vem com a IDE. Portanto, não é preciso baixar nenhuma biblioteca adicional
  
-  umidadeSolo = -0.0977*umidadeSolo + 100;
-  //Inicia um client TCP para o envio dos dados
-  if (client.connect(server,80)) {
-    String postStr = apiKey;       	
-       	postStr +="&amp;field3=";
-       	postStr += String(umidadeSolo);
-       	postStr += "\r\n\r\n";
- 	client.print("POST /update HTTP/1.1\n");
- 	client.print("Host: api.thingspeak.com\n");
- 	client.print("Connection: close\n");
- 	client.print("X-THINGSPEAKAPIKEY: "+apiKey+"\n");
- 	client.print("Content-Type: application/x-www-form-urlencoded\n");
- 	client.print("Content-Length: ");
- 	client.print(postStr.length());
- 	client.print("\n\n");
- 	client.print(postStr);
- 	//Logs na porta serial
- 	
- 	Serial.print(" Umidade Solo: ");
- 	Serial.println(umidadeSolo);
-  }
-  client.stop();
+//defines
+#define SSID_REDE     " "  //coloque aqui o nome da rede que se deseja conectar
+#define SENHA_REDE    "  "  //coloque aqui a senha da rede que se deseja conectar
+#define INTERVALO_ENVIO_THINGSPEAK  30000  //intervalo entre envios de dados ao ThingSpeak (em ms)
+ 
+//constantes e variáveis globais
+char EnderecoAPIThingSpeak[] = "api.thingspeak.com";
+String ChaveEscritaThingSpeak = "KGFP6X4JQTJZFIAP";
+long lastConnectionTime; 
+WiFiClient client;
+ 
+//prototypes
+void EnviaInformacoesThingspeak(String StringDados);
+void FazConexaoWiFi(void);
+float FazLeituraUmidade(void);
+ 
+/*
+ * Implementações
+ */
+ 
+//Função: envia informações ao ThingSpeak
+//Parâmetros: String com a  informação a ser enviada
+//Retorno: nenhum
+void EnviaInformacoesThingspeak(String StringDados)
+{
+    if (client.connect(EnderecoAPIThingSpeak, 80))
+    {         
+        //faz a requisição HTTP ao ThingSpeak
+        client.print("POST /update HTTP/1.1\n");
+        client.print("Host: api.thingspeak.com\n");
+        client.print("Connection: close\n");
+        client.print("X-THINGSPEAKAPIKEY: "+ChaveEscritaThingSpeak+"\n");
+        client.print("Content-Type: application/x-www-form-urlencoded\n");
+        client.print("Content-Length: ");
+        client.print(StringDados.length());
+        client.print("\n\n");
+        client.print(StringDados);
+   
+        lastConnectionTime = millis();
+        Serial.println("- Informações enviadas ao ThingSpeak!");
+     }   
+}
+ 
+//Função: faz a conexão WiFI
+//Parâmetros: nenhum
+//Retorno: nenhum
+void FazConexaoWiFi(void)
+{
+    client.stop();
+    Serial.println("Conectando-se à rede WiFi...");
+    Serial.println();  
+    delay(1000);
+    WiFi.begin(SSID_REDE, SENHA_REDE);
+ 
+    while (WiFi.status() != WL_CONNECTED) 
+    {
+        delay(500);
+        Serial.print(".");
+    }
+ 
+    Serial.println("");
+    Serial.println("WiFi connectado com sucesso!");  
+    Serial.println("IP obtido: ");
+    Serial.println(WiFi.localIP());
+ 
+    delay(1000);
+}
+ 
+//Função: faz a leitura do nível de umidade
+//Parâmetros: nenhum
+//Retorno: umidade percentual (0-100)
+//Observação: o ADC do NodeMCU permite até, no máximo, 3.3V. Dessa forma,
+//            para 3.3V, obtem-se (empiricamente) 978 como leitura de ADC
+float FazLeituraUmidade(void)
+{
+    int ValorADC;
+    float UmidadePercentual;
+ 
+     ValorADC = analogRead(0);   //978 -> 3,3V
+     Serial.print("[Leitura ADC] ");
+     Serial.println(ValorADC);
+ 
+     //Quanto maior o numero lido do ADC, menor a umidade.
+     //Sendo assim, calcula-se a porcentagem de umidade por:
+     //      
+     //   Valor lido                 Umidade percentual
+     //      _    0                           _ 100
+     //      |                                |   
+     //      |                                |   
+     //      -   ValorADC                     - UmidadePercentual 
+     //      |                                |   
+     //      |                                |   
+     //     _|_  978                         _|_ 0
+     //
+     //   (UmidadePercentual-0) / (100-0)  =  (ValorADC - 978) / (-978)
+     //      Logo:
+     //      UmidadePercentual = 100 * ((978-ValorADC) / 978)  
+      
+     UmidadePercentual = 100 * ((978-(float)ValorADC) / 978);
+     Serial.print("[Umidade Percentual] ");
+     Serial.print(UmidadePercentual);
+     Serial.println("%");
+ 
+     return UmidadePercentual;
+}
+void setup()
+{  
+    Serial.begin(9600);
+    lastConnectionTime = 0; 
+    FazConexaoWiFi();
+    Serial.println("Planta IoT com ESP8266 NodeMCU");
+}
+ 
+//loop principal
+void loop()
+{
+    float UmidadePercentualLida;
+    int UmidadePercentualTruncada;
+    char FieldUmidade[11];
+     
+    //Força desconexão ao ThingSpeak (se ainda estiver desconectado)
+    if (client.connected())
+    {
+        client.stop();
+        Serial.println("- Desconectado do ThingSpeak");
+        Serial.println();
+    }
+ 
+    UmidadePercentualLida = FazLeituraUmidade();
+    UmidadePercentualTruncada = (int)UmidadePercentualLida; //trunca umidade como número inteiro
+     
+    //verifica se está conectado no WiFi e se é o momento de enviar dados ao ThingSpeak
+    if(!client.connected() && 
+      (millis() - lastConnectionTime > INTERVALO_ENVIO_THINGSPEAK))
+    {
+        sprintf(FieldUmidade,"field1=%d",UmidadePercentualTruncada);
+        EnviaInformacoesThingspeak(FieldUmidade);
+    }
+ 
+     delay(1000);
 }
