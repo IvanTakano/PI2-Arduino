@@ -17,7 +17,7 @@ if(sensor < 300){
 
 //função para envio do email que recebe por parametro a mengagem a ser enviada, nome do cliente e email do cliente
 // a classes JavaMail são incluídas no SDK do App Engine, com ela não é necessário conectar um servidor SMTP
-function void String enviarEmail(String menssagem, String nomeCliente, emailCliente){
+function void String enviarEmail(String mensagem, String nomeCliente, emailCliente){
   Properties props = new Properties();
   Session session = Session.getDefaultInstance(props, null);
 
