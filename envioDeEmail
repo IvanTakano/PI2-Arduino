@@ -10,7 +10,7 @@ if(sensor > 600){
  String msg = "A umidade do solo está baixa!";
  enviarEmail(msg, nomeCliente, email);
 } else 
-if(sensor > 300){
+if(sensor < 300){
  msg = "A umidade do solo está alta!";
  enviarEmail(msg, nomeCliente, email);
 };
